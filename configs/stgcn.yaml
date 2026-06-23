@@ -1,0 +1,84 @@
+model:
+  in_channels: 3            # x, y, confidence per joint
+  num_classes: 4            # normal, help_signal, collapse_falling, fall_down
+  num_joints: 17            # COCO 17-keypoint skeleton
+  edge_importance_weighting: true
+  dropout: 0.5
+
+classes:
+  0: normal
+  1: help_signal
+  2: collapse_falling
+  3: fall_down
+
+data:
+  window_size: 30           # frames per clip
+  stride: 15                # sliding window stride
+  num_joints: 17
+  num_channels: 3           # x, y, confidence
+
+  # NTU RGB+D 120 action class IDs to include
+  ntu_class_map:
+    normal:            [1, 2, 3, 4, 5, 6, 7, 10, 11, 23]   # daily activities
+    collapse_falling:  [43, 53, 55]                          # fall, stagger, headache
+    fall_down:         [43, 44]                              # fallen + lying on floor
+    help_signal:       [26, 28]                              # wave hand, point (proxy)
+
+  # MediaPipe landmark indices mapped to COCO 17 joints
+  mediapipe_to_coco:
+    0: 0    # nose
+    2: 1    # left eye
+    5: 2    # right eye
+    7: 3    # left ear
+    8: 4    # right ear
+    11: 5   # left shoulder
+    12: 6   # right shoulder
+    13: 7   # left elbow
+    14: 8   # right elbow
+    15: 9   # left wrist
+    16: 10  # right wrist
+    23: 11  # left hip
+    24: 12  # right hip
+    25: 13  # left knee
+    26: 14  # right knee
+    27: 15  # left ankle
+    28: 16  # right ankle
+
+  # NTU 25-joint to COCO 17-joint mapping
+  ntu_to_coco:
+    3: 0    # head → nose
+    4: 5    # left shoulder
+    8: 6    # right shoulder
+    5: 7    # left elbow
+    9: 8    # right elbow
+    6: 9    # left wrist
+    10: 10  # right wrist
+    12: 11  # left hip
+    16: 12  # right hip
+    13: 13  # left knee
+    17: 14  # right knee
+    14: 15  # left ankle
+    18: 16  # right ankle
+
+training:
+  epochs: 80
+  batch_size: 32
+  learning_rate: 0.1
+  lr_decay_step: [30, 60]
+  lr_decay_gamma: 0.1
+  weight_decay: 0.0001
+  momentum: 0.9
+  seed: 42
+  val_split: 0.15
+  early_stopping_patience: 15
+
+  # class weights to handle imbalance
+  class_weights:
+    normal: 1.0
+    help_signal: 3.0
+    collapse_falling: 2.5
+    fall_down: 2.5
+
+output:
+  checkpoint_dir: /kaggle/working/checkpoints
+  drive_model_dir: /content/drive/MyDrive/distress_detection/models

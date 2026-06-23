@@ -1,0 +1,7 @@
+opencv-python==4.9.0.80
+mediapipe==0.10.14
+onnxruntime==1.18.0
+numpy==1.26.4
+Pillow==10.3.0
+pyyaml==6.0.1
+tqdm==4.66.4

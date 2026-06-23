@@ -1,0 +1,41 @@
+model:
+  architecture: yolov8n     # nano — fastest, CPU-viable at inference
+  pretrained: true
+  num_classes: 1
+  class_names:
+    0: knife
+
+data:
+  image_size: 640
+  train_val_split: 0.85
+
+  # dataset paths on Kaggle (set at runtime)
+  od_weapon_path: /kaggle/input/od-weapon-knife
+  cctv_weapon_path: /kaggle/input/cctv-weapon-dataset
+  cctv_atm_path: /kaggle/input/cctv-atm-robbery
+
+training:
+  epochs: 50
+  batch_size: 16
+  learning_rate: 0.01
+  lr_final: 0.001
+  patience: 10
+  device: 0                 # GPU index on Kaggle
+  workers: 4
+  seed: 42
+  optimizer: SGD
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+
+inference:
+  confidence_threshold: 0.50
+  iou_threshold: 0.45
+  # normalized distance from knife bbox center to wrist keypoint
+  # to classify as "holding knife"
+  wrist_proximity_threshold: 0.15
+  max_det: 10
+
+output:
+  run_dir: /kaggle/working/yolo_runs
+  drive_model_dir: /content/drive/MyDrive/distress_detection/models
