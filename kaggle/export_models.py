@@ -1,128 +1,111 @@
 """
-Export trained ST-GCN and YOLOv8 models to ONNX format.
-Run after training is complete.
-
-Usage (inside Kaggle notebook cell):
-    !python export_models.py
+Step 5 — Export trained models to ONNX for CPU inference on your laptop.
+Run after both training scripts complete.
 """
 
 import os
 import sys
 import yaml
+import shutil
 import numpy as np
 from pathlib import Path
 
 import torch
 
-from google.colab import drive
-drive.mount('/content/drive')
-
-DRIVE_ROOT = Path('/content/drive/MyDrive/distress_detection')
-CKPT_DIR   = DRIVE_ROOT / 'checkpoints' / 'stgcn'
-YOLO_DIR   = DRIVE_ROOT / 'yolo_runs' / 'knife_yolov8n' / 'weights'
-MODELS_DIR = DRIVE_ROOT / 'models'
+REPO_DIR   = Path('/kaggle/working/distress-gesture-detection')
+WORKING    = Path('/kaggle/working/distress_detection')
+CKPT_DIR   = WORKING / 'checkpoints' / 'stgcn'
+YOLO_DIR   = WORKING / 'yolo_runs' / 'knife_yolov8n' / 'weights'
+MODELS_DIR = WORKING / 'models'
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-sys.path.insert(0, '/kaggle/working/distress-gesture-detection')
+# Also copy to /kaggle/working/ root so they appear in Kaggle output tab
+OUTPUT_DIR = Path('/kaggle/working')
 
+sys.path.insert(0, str(REPO_DIR))
 from src.models.stgcn import STGCN
 
-CONFIG_PATH = '/kaggle/working/distress-gesture-detection/configs/stgcn.yaml'
-with open(CONFIG_PATH) as f:
+with open(REPO_DIR / 'configs' / 'stgcn.yaml') as f:
     cfg = yaml.safe_load(f)
 
 
 def export_stgcn():
-    print('── Exporting ST-GCN to ONNX ─────────────────────────')
+    print('── Exporting ST-GCN → ONNX ──────────────────────────')
     ckpt_path = CKPT_DIR / 'best.pth'
     if not ckpt_path.exists():
-        raise FileNotFoundError(f'ST-GCN checkpoint not found: {ckpt_path}')
+        raise FileNotFoundError(f'Checkpoint not found: {ckpt_path}')
 
-    ckpt = torch.load(str(ckpt_path), map_location='cpu')
+    ckpt  = torch.load(str(ckpt_path), map_location='cpu')
     model = STGCN(
         in_channels=cfg['model']['in_channels'],
         num_classes=cfg['model']['num_classes'],
-        dropout=0.0,  # disable dropout for inference
+        dropout=0.0,
     )
     model.load_state_dict(ckpt['model_state'])
     model.eval()
 
-    # Dummy input: (batch=1, channels=3, frames=30, joints=17)
-    dummy = torch.zeros(1, 3, cfg['data']['window_size'],
-                        cfg['model']['num_joints'])
+    dummy    = torch.zeros(1, 3, cfg['data']['window_size'],
+                           cfg['model']['num_joints'])
     out_path = str(MODELS_DIR / 'stgcn.onnx')
 
     torch.onnx.export(
-        model,
-        dummy,
-        out_path,
-        export_params=True,
-        opset_version=17,
+        model, dummy, out_path,
+        export_params=True, opset_version=17,
         do_constant_folding=True,
-        input_names=['skeleton'],
-        output_names=['logits'],
-        dynamic_axes={
-            'skeleton': {0: 'batch_size'},
-            'logits':   {0: 'batch_size'},
-        },
+        input_names=['skeleton'], output_names=['logits'],
+        dynamic_axes={'skeleton': {0: 'batch'}, 'logits': {0: 'batch'}},
     )
 
-    # Verify
     import onnx
-    onnx_model = onnx.load(out_path)
-    onnx.checker.check_model(onnx_model)
+    onnx.checker.check_model(onnx.load(out_path))
 
-    print(f'  ✓ ST-GCN exported → {out_path}')
-    print(f'    Val acc at export: {ckpt["val_acc"]:.2f}%')
-    print(f'    Trained epochs:    {ckpt["epoch"]}')
+    # Copy to output tab for easy download
+    shutil.copy2(out_path, str(OUTPUT_DIR / 'stgcn.onnx'))
+
+    size_mb = Path(out_path).stat().st_size / (1024 ** 2)
+    print(f'  ✓ stgcn.onnx  ({size_mb:.1f} MB)')
+    print(f'    Val acc: {ckpt["val_acc"]:.2f}%  |  Epochs: {ckpt["epoch"]}')
 
 
 def export_yolo():
-    print('\n── Exporting YOLOv8n to ONNX ────────────────────────')
+    print('\n── Exporting YOLOv8n → ONNX ─────────────────────────')
     os.system('pip install -q ultralytics')
     from ultralytics import YOLO
 
     best_pt = YOLO_DIR / 'best.pt'
     if not best_pt.exists():
-        raise FileNotFoundError(f'YOLOv8 weights not found: {best_pt}')
+        raise FileNotFoundError(f'YOLO weights not found: {best_pt}')
 
     model = YOLO(str(best_pt))
+    model.export(format='onnx', imgsz=640, opset=17, simplify=True)
+
+    # YOLO exports next to .pt — move to models dir
+    yolo_src = YOLO_DIR / 'best.onnx'
     out_path = str(MODELS_DIR / 'yolo_knife.onnx')
+    if yolo_src.exists():
+        shutil.move(str(yolo_src), out_path)
 
-    model.export(
-        format='onnx',
-        imgsz=640,
-        opset=17,
-        simplify=True,
-        dynamic=False,
-    )
+    # Copy to output tab
+    shutil.copy2(out_path, str(OUTPUT_DIR / 'yolo_knife.onnx'))
 
-    # YOLO exports next to the .pt file — move to our models dir
-    yolo_onnx_src = str(YOLO_DIR / 'best.onnx')
-    if os.path.exists(yolo_onnx_src):
-        import shutil
-        shutil.move(yolo_onnx_src, out_path)
-
-    print(f'  ✓ YOLOv8n exported → {out_path}')
+    size_mb = Path(out_path).stat().st_size / (1024 ** 2)
+    print(f'  ✓ yolo_knife.onnx  ({size_mb:.1f} MB)')
 
 
-def print_model_summary():
-    print('\n── Model Summary ────────────────────────────────────')
-    for name in ['stgcn.onnx', 'yolo_knife.onnx']:
-        p = MODELS_DIR / name
-        if p.exists():
-            size_mb = p.stat().st_size / (1024 ** 2)
-            print(f'  {name}: {size_mb:.1f} MB')
-        else:
-            print(f'  {name}: NOT FOUND')
-
-    print(f'\n  Download both files from Google Drive:')
-    print(f'  {MODELS_DIR}')
-    print(f'\n  Place them in your local project:')
-    print(f'  distress-gesture-detection/models/')
+def print_download_instructions():
+    print('\n═' * 54)
+    print('  Export complete!')
+    print('\n  HOW TO DOWNLOAD YOUR MODELS:')
+    print('  1. Click the Output tab (right panel in Kaggle)')
+    print('  2. Download: stgcn.onnx  and  yolo_knife.onnx')
+    print('  3. Place both files in your local project:')
+    print('       distress-gesture-detection/models/')
+    print('\n  Then run on your laptop:')
+    print('       python scripts/run_camera.py')
+    print('═' * 54)
 
 
 if __name__ == '__main__':
     export_stgcn()
     export_yolo()
-    print_model_summary()
+    print_download_instructions()
