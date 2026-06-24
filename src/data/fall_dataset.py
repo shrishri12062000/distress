@@ -82,17 +82,29 @@ class URFDDataset(Dataset):
         self.cache_dir = skeleton_cache_dir
         self.samples = []  # (sequence_dir, label)
 
-        for folder in sorted(os.listdir(root)):
-            full = os.path.join(root, folder)
+        # Walk up to 2 levels to find fall-* / adl-* sequence folders
+        found_any = self._scan_dir(root, depth=0)
+        if not found_any:
+            # Fallback: search one level deeper (e.g. root/urfd/fall-*)
+            for sub in sorted(os.listdir(root)):
+                sub_path = os.path.join(root, sub)
+                if os.path.isdir(sub_path):
+                    self._scan_dir(sub_path, depth=1)
+
+    def _scan_dir(self, path, depth):
+        found = False
+        for folder in sorted(os.listdir(path)):
+            full = os.path.join(path, folder)
             if not os.path.isdir(full):
                 continue
-            if folder.startswith('fall'):
-                label = LABEL_FALL_DOWN
-            elif folder.startswith('adl'):
-                label = LABEL_NORMAL
-            else:
-                continue
-            self.samples.append((full, label))
+            fl = folder.lower()
+            if any(fl.startswith(p) for p in ('fall', 'falls')):
+                self.samples.append((full, LABEL_FALL_DOWN))
+                found = True
+            elif any(fl.startswith(p) for p in ('adl', 'normal', 'notfall', 'no_fall', 'daily')):
+                self.samples.append((full, LABEL_NORMAL))
+                found = True
+        return found
 
     def __len__(self):
         return len(self.samples)
@@ -179,14 +191,19 @@ class Le2iDataset(Dataset):
         self.cache_dir = skeleton_cache_dir
         self.samples = []
 
-        for category in ['Fall', 'NotFall']:
-            label = LABEL_FALL_DOWN if category == 'Fall' else LABEL_NORMAL
-            cat_dir = os.path.join(root, category)
-            if not os.path.isdir(cat_dir):
+        # Scan recursively for video files; classify by parent folder name
+        for dirpath, _dirs, files in os.walk(root):
+            folder_name = os.path.basename(dirpath).lower()
+            if any(k in folder_name for k in ('fall', 'chute')):
+                label = LABEL_FALL_DOWN
+            elif any(k in folder_name for k in ('notfall', 'not_fall', 'normal',
+                                                  'adl', 'daily', 'video')):
+                label = LABEL_NORMAL
+            else:
                 continue
-            for f in sorted(os.listdir(cat_dir)):
-                if f.lower().endswith(('.avi', '.mp4', '.mkv')):
-                    self.samples.append((os.path.join(cat_dir, f), label))
+            for f in sorted(files):
+                if f.lower().endswith(('.avi', '.mp4', '.mkv', '.mov')):
+                    self.samples.append((os.path.join(dirpath, f), label))
 
     def __len__(self):
         return len(self.samples)

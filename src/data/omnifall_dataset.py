@@ -62,7 +62,8 @@ class OmniFallDataset(Dataset):
     splits: list of OmniFall split names to include.
     """
 
-    SUPPORTED_SPLITS = ['of_staged', 'of_synthetic']
+    # HuggingFace now exposes a single 'train' split containing all subsets
+    SUPPORTED_SPLITS = ['train']
 
     def __init__(self, skeleton_cache_dir, splits=None, window_size=30,
                  augment=False):
@@ -74,15 +75,14 @@ class OmniFallDataset(Dataset):
         self.cache_dir   = skeleton_cache_dir
         os.makedirs(skeleton_cache_dir, exist_ok=True)
 
-        splits = splits or self.SUPPORTED_SPLITS
+        splits = self.SUPPORTED_SPLITS  # always use ['train'] regardless of arg
         self.samples = []  # (video_id, label)
         self._data   = {}  # video_id → HF row
 
         for split in splits:
             print(f'[OmniFall] Loading split: {split}')
             try:
-                ds = hf_load_dataset('simplexsigil2/omnifall',
-                                     split=split, trust_remote_code=True)
+                ds = hf_load_dataset('simplexsigil2/omnifall', split=split)
             except Exception as e:
                 print(f'[OmniFall] Could not load split {split}: {e}')
                 continue
@@ -90,10 +90,9 @@ class OmniFallDataset(Dataset):
             for i, row in enumerate(ds):
                 raw_label = row.get('action', row.get('label', 'unclear'))
                 if isinstance(raw_label, int):
-                    # Some splits use integer labels — try to get name
-                    raw_label = ds.features['label'].int2str(raw_label) \
-                                if 'label' in ds.features else 'unclear'
-                raw_label = raw_label.lower().replace(' ', '_')
+                    feat = ds.features.get('label') or ds.features.get('action')
+                    raw_label = feat.int2str(raw_label) if feat else 'unclear'
+                raw_label = str(raw_label).lower().replace(' ', '_')
                 label = OMNIFALL_LABEL_MAP.get(raw_label, LABEL_NORMAL)
 
                 vid_id = f'{split}_{i:06d}'

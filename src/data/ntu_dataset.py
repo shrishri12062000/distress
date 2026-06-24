@@ -124,16 +124,20 @@ class NTUDataset(Dataset):
         self.augment = augment
         self.samples = []  # list of (file_path, label)
 
-        for fname in os.listdir(folder):
-            if not fname.endswith('.skeleton'):
-                continue
-            action_id = int(fname[fname.index('A') + 1: fname.index('A') + 4])
-            if action_id not in NTU_CLASS_MAP:
-                continue
-            self.samples.append((
-                os.path.join(folder, fname),
-                NTU_CLASS_MAP[action_id]
-            ))
+        for root, _dirs, files in os.walk(folder):
+            for fname in files:
+                if not fname.endswith('.skeleton'):
+                    continue
+                try:
+                    action_id = int(fname[fname.index('A') + 1: fname.index('A') + 4])
+                except (ValueError, IndexError):
+                    continue
+                if action_id not in NTU_CLASS_MAP:
+                    continue
+                self.samples.append((
+                    os.path.join(root, fname),
+                    NTU_CLASS_MAP[action_id]
+                ))
 
     def __len__(self):
         return len(self.samples)
