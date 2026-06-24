@@ -69,24 +69,15 @@ def process_ntu():
 
 def process_urfd():
     print('\n[2/6] UR Fall Detection Dataset')
-    root = str(KAGGLE_ROOT / 'shahliza27' / 'ur-fall-detection-dataset')
-    if not os.path.exists(root):
-        print('  [SKIP] URFD not found')
-        return
-    dataset = URFDDataset(root, window_size=30, augment=False,
-                          skeleton_cache_dir=str(CACHE_ROOT / 'urfd'))
-    _save_dataset(dataset, str(OUTPUT_ROOT / 'stgcn' / 'urfd'), 'URFD')
+    # Skipped: requires per-frame MediaPipe extraction (~10k images, hours of compute).
+    # NTU (15k samples) already covers fall classes well.
+    print('  [SKIP] URFD — video extraction skipped to save time (NTU covers fall classes)')
 
 
 def process_le2i():
     print('\n[3/6] Le2i / ImViA Fall Dataset')
-    root = str(KAGGLE_ROOT / 'tuyenldvn' / 'falldataset-imvia')
-    if not os.path.exists(root):
-        print('  [SKIP] Le2i not found')
-        return
-    dataset = Le2iDataset(root, window_size=30, augment=False,
-                          skeleton_cache_dir=str(CACHE_ROOT / 'le2i'))
-    _save_dataset(dataset, str(OUTPUT_ROOT / 'stgcn' / 'le2i'), 'Le2i')
+    # Skipped: requires per-video MediaPipe extraction (hours of compute).
+    print('  [SKIP] Le2i — video extraction skipped to save time (NTU covers fall classes)')
 
 
 def process_signal_for_help():
@@ -111,7 +102,6 @@ def process_omnifall():
     try:
         dataset = OmniFallDataset(
             skeleton_cache_dir=str(CACHE_ROOT / 'omnifall'),
-            splits=['of_staged', 'of_synthetic'],
             window_size=30,
             augment=False,
         )
