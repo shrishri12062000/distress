@@ -69,15 +69,30 @@ def process_ntu():
 
 def process_urfd():
     print('\n[2/6] UR Fall Detection Dataset')
-    # Skipped: requires per-frame MediaPipe extraction (~10k images, hours of compute).
-    # NTU (15k samples) already covers fall classes well.
-    print('  [SKIP] URFD — video extraction skipped to save time (NTU covers fall classes)')
+    root = str(KAGGLE_ROOT / 'shahliza27' / 'ur-fall-detection-dataset')
+    if not os.path.exists(root):
+        print('  [SKIP] URFD not found')
+        return
+    try:
+        dataset = URFDDataset(root, window_size=30, augment=False,
+                              skeleton_cache_dir=str(CACHE_ROOT / 'urfd'))
+        _save_dataset(dataset, str(OUTPUT_ROOT / 'stgcn' / 'urfd'), 'URFD')
+    except Exception as e:
+        print(f'  [SKIP] URFD failed: {e}')
 
 
 def process_le2i():
     print('\n[3/6] Le2i / ImViA Fall Dataset')
-    # Skipped: requires per-video MediaPipe extraction (hours of compute).
-    print('  [SKIP] Le2i — video extraction skipped to save time (NTU covers fall classes)')
+    root = str(KAGGLE_ROOT / 'tuyenldvn' / 'falldataset-imvia')
+    if not os.path.exists(root):
+        print('  [SKIP] Le2i not found')
+        return
+    try:
+        dataset = Le2iDataset(root, window_size=30, augment=False,
+                              skeleton_cache_dir=str(CACHE_ROOT / 'le2i'))
+        _save_dataset(dataset, str(OUTPUT_ROOT / 'stgcn' / 'le2i'), 'Le2i')
+    except Exception as e:
+        print(f'  [SKIP] Le2i failed: {e}')
 
 
 def process_signal_for_help():

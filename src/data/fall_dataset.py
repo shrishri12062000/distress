@@ -135,33 +135,41 @@ class URFDDataset(Dataset):
 
         return skeleton
 
-    def _extract_from_frames(self, seq_dir):
+    def _extract_from_frames(self, seq_dir, max_frames=60):
         assert _MP_AVAILABLE, "mediapipe not installed"
 
-        frames_list = sorted([
+        all_frames = sorted([
             f for f in os.listdir(seq_dir)
-            if f.lower().endswith(('.png', '.jpg'))
+            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
         ])
 
-        mp_pose = mp.solutions.pose
+        # Sample evenly to keep extraction fast (avoid hours of compute per dataset)
+        if len(all_frames) > max_frames:
+            step = len(all_frames) // max_frames
+            all_frames = all_frames[::step][:max_frames]
+
         skeletons = []
+        try:
+            pose_solution = mp.solutions.pose
+            with pose_solution.Pose(static_image_mode=True,
+                                    min_detection_confidence=0.3) as pose:
+                for fname in all_frames:
+                    img = cv2.imread(os.path.join(seq_dir, fname))
+                    if img is None:
+                        continue
+                    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    result = pose.process(rgb)
 
-        with mp_pose.Pose(static_image_mode=True,
-                          min_detection_confidence=0.5) as pose:
-            for fname in frames_list:
-                img = cv2.imread(os.path.join(seq_dir, fname))
-                if img is None:
-                    continue
-                rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                result = pose.process(rgb)
-
-                sk = np.zeros((17, 3), dtype=np.float32)
-                if result.pose_landmarks:
-                    lm = result.pose_landmarks.landmark
-                    for mp_idx, coco_idx in MP_TO_COCO.items():
-                        sk[coco_idx] = [lm[mp_idx].x, lm[mp_idx].y,
-                                        lm[mp_idx].visibility]
-                skeletons.append(sk)
+                    sk = np.zeros((17, 3), dtype=np.float32)
+                    if result.pose_landmarks:
+                        lm = result.pose_landmarks.landmark
+                        for mp_idx, coco_idx in MP_TO_COCO.items():
+                            sk[coco_idx] = [lm[mp_idx].x, lm[mp_idx].y,
+                                            lm[mp_idx].visibility]
+                    skeletons.append(sk)
+        except Exception as e:
+            print(f'  [WARN] MediaPipe extraction failed for {seq_dir}: {e}')
+            return np.zeros((self.window_size, 17, 3), dtype=np.float32)
 
         if not skeletons:
             return np.zeros((self.window_size, 17, 3), dtype=np.float32)
