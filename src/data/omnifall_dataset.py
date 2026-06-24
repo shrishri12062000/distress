@@ -190,29 +190,43 @@ class OmniFallDataset(Dataset):
             print(f'  {names[k]}: {v}')
 
 
-def _extract_skeleton_from_video(video_path, window_size):
+def _extract_skeleton_from_video(video_path, window_size, max_frames=90):
     """Extract COCO-17 skeleton sequence from a video using MediaPipe Tasks API."""
-    cap    = cv2.VideoCapture(video_path)
-    frames = []
+    try:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return np.zeros((window_size, 17, 3), dtype=np.float32)
 
-    with _make_pose_detector() as detector:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            result = detector.detect(mp_img)
-            frames.append(_landmarks_to_coco(result.pose_landmarks))
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+        step  = max(1, total // max_frames) if total > max_frames else 1
 
-    cap.release()
+        frames    = []
+        frame_idx = 0
 
-    if not frames:
+        with _make_pose_detector() as detector:
+            while cap.isOpened() and len(frames) < max_frames:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                if frame_idx % step == 0:
+                    rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                    result = detector.detect(mp_img)
+                    frames.append(_landmarks_to_coco(result.pose_landmarks))
+                frame_idx += 1
+
+        cap.release()
+
+        if not frames:
+            return np.zeros((window_size, 17, 3), dtype=np.float32)
+
+        arr     = np.array(frames)
+        indices = np.linspace(0, len(arr) - 1, window_size).astype(int)
+        return arr[indices]
+
+    except Exception as e:
+        print(f'  [WARN] Video extraction failed: {e}')
         return np.zeros((window_size, 17, 3), dtype=np.float32)
-
-    arr     = np.array(frames)
-    indices = np.linspace(0, len(arr) - 1, window_size).astype(int)
-    return arr[indices]
 
 
 def _augment(skeleton):
