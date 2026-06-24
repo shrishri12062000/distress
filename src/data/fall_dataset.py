@@ -191,19 +191,31 @@ class Le2iDataset(Dataset):
         self.cache_dir = skeleton_cache_dir
         self.samples = []
 
-        # Scan recursively for video files; classify by parent folder name
-        for dirpath, _dirs, files in os.walk(root):
-            folder_name = os.path.basename(dirpath).lower()
-            if any(k in folder_name for k in ('fall', 'chute')):
-                label = LABEL_FALL_DOWN
-            elif any(k in folder_name for k in ('notfall', 'not_fall', 'normal',
-                                                  'adl', 'daily', 'video')):
-                label = LABEL_NORMAL
-            else:
+        # Walk looking for Videos/ subdirectories (Coffee_room/Home layout)
+        # or video files directly in scene folders (Lecture_room/Office layout)
+        for dirpath, dirnames, files in os.walk(root):
+            folder_name = os.path.basename(dirpath).lower().replace(' ', '_')
+
+            videos = [f for f in sorted(files)
+                      if f.lower().endswith(('.avi', '.mp4', '.mkv', '.mov'))]
+            if not videos:
                 continue
-            for f in sorted(files):
-                if f.lower().endswith(('.avi', '.mp4', '.mkv', '.mov')):
+
+            if folder_name in ('videos', 'video'):
+                # Inside a Videos/ subdir — check sibling Annotation_files/
+                parent = os.path.dirname(dirpath)
+                ann_dir = next(
+                    (os.path.join(parent, d) for d in os.listdir(parent)
+                     if 'annotation' in d.lower() and os.path.isdir(os.path.join(parent, d))),
+                    None
+                )
+                for f in videos:
+                    label = _le2i_label(f, ann_dir)
                     self.samples.append((os.path.join(dirpath, f), label))
+            else:
+                # Videos directly in scene folder (Lecture room, Office, etc.)
+                for f in videos:
+                    self.samples.append((os.path.join(dirpath, f), LABEL_FALL_DOWN))
 
     def __len__(self):
         return len(self.samples)
@@ -283,6 +295,31 @@ class SignalForHelpDataset(Dataset):
 
         x = skeleton.transpose(2, 0, 1).astype(np.float32)
         return x, label
+
+
+def _le2i_label(video_name, ann_dir):
+    """
+    Determine fall/normal label for a Le2i video from its annotation file.
+    Annotation format: lines of 'frame_number label' where label 1 = fall.
+    Falls back to LABEL_FALL_DOWN if annotation not found (it's a fall dataset).
+    """
+    if not ann_dir or not os.path.isdir(ann_dir):
+        return LABEL_FALL_DOWN
+
+    stem = os.path.splitext(video_name)[0]
+    for ann_file in os.listdir(ann_dir):
+        if stem.lower() in ann_file.lower():
+            try:
+                with open(os.path.join(ann_dir, ann_file)) as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) >= 2 and parts[-1] in ('1', '2'):
+                            return LABEL_FALL_DOWN
+                return LABEL_NORMAL
+            except OSError:
+                pass
+
+    return LABEL_FALL_DOWN
 
 
 def _augment(skeleton):
