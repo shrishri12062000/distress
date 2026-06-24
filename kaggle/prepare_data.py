@@ -39,6 +39,11 @@ from src.data.knife_dataset    import merge_knife_datasets
 
 def _save_dataset(dataset, out_dir, name):
     out = Path(out_dir)
+    # Resume: skip if already saved from a previous run
+    if (out / 'X.npy').exists() and (out / 'y.npy').exists():
+        n = np.load(str(out / 'X.npy')).shape[0]
+        print(f'  {name}: already saved ({n} samples) — skipping')
+        return n
     out.mkdir(parents=True, exist_ok=True)
     xs, ys = [], []
     for x, y in tqdm(dataset, desc=name):
