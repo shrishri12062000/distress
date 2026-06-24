@@ -19,7 +19,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 REPO_DIR    = Path('/kaggle/working/distress-gesture-detection')
-KAGGLE_ROOT = Path('/kaggle/input')
+KAGGLE_ROOT = Path('/kaggle/input/datasets')
 WORKING     = Path('/kaggle/working/distress_detection')
 CACHE_ROOT  = WORKING / 'skeleton_cache'
 OUTPUT_ROOT = WORKING / 'processed'
@@ -55,15 +55,13 @@ def _save_dataset(dataset, out_dir, name):
 
 def process_ntu():
     print('\n[1/6] NTU RGB+D skeleton data')
-    # Try NTU 120 first, fall back to NTU 60
     candidates = [
-        KAGGLE_ROOT / 'ntu-rgbd-120-skeleton' / 'skeletons',
-        KAGGLE_ROOT / 'skeleton-data-of-ntu-rgbd-60-dataset',
-        KAGGLE_ROOT / 'ntu-rgbd-60-skeleton',
+        KAGGLE_ROOT / 'hungkhoi' / 'skeleton-data-of-ntu-rgbd-60-dataset',
+        KAGGLE_ROOT / 'hungkhoi' / 'skeleton-data-of-ntu-rgbd-60-dataset' / 'skeletons',
     ]
     skeleton_dir = next((str(p) for p in candidates if p.exists()), None)
     if skeleton_dir is None:
-        print('  [SKIP] NTU skeleton data not found in /kaggle/input')
+        print('  [SKIP] NTU skeleton data not found')
         return
     dataset = NTUDataset(skeleton_dir, window_size=30, augment=False)
     _save_dataset(dataset, str(OUTPUT_ROOT / 'stgcn' / 'ntu'), 'NTU')
@@ -71,13 +69,9 @@ def process_ntu():
 
 def process_urfd():
     print('\n[2/6] UR Fall Detection Dataset')
-    candidates = [
-        KAGGLE_ROOT / 'ur-fall-detection-dataset',
-        KAGGLE_ROOT / 'shahliza27' / 'ur-fall-detection-dataset',
-    ]
-    root = next((str(p) for p in candidates if p.exists()), None)
-    if root is None:
-        print('  [SKIP] URFD not found in /kaggle/input')
+    root = str(KAGGLE_ROOT / 'shahliza27' / 'ur-fall-detection-dataset')
+    if not os.path.exists(root):
+        print('  [SKIP] URFD not found')
         return
     dataset = URFDDataset(root, window_size=30, augment=False,
                           skeleton_cache_dir=str(CACHE_ROOT / 'urfd'))
@@ -86,13 +80,9 @@ def process_urfd():
 
 def process_le2i():
     print('\n[3/6] Le2i / ImViA Fall Dataset')
-    candidates = [
-        KAGGLE_ROOT / 'falldataset-imvia',
-        KAGGLE_ROOT / 'tuyenldvn' / 'falldataset-imvia',
-    ]
-    root = next((str(p) for p in candidates if p.exists()), None)
-    if root is None:
-        print('  [SKIP] Le2i not found in /kaggle/input')
+    root = str(KAGGLE_ROOT / 'tuyenldvn' / 'falldataset-imvia')
+    if not os.path.exists(root):
+        print('  [SKIP] Le2i not found')
         return
     dataset = Le2iDataset(root, window_size=30, augment=False,
                           skeleton_cache_dir=str(CACHE_ROOT / 'le2i'))
@@ -101,16 +91,14 @@ def process_le2i():
 
 def process_signal_for_help():
     print('\n[4/6] Signal for Help Dataset')
-    # Upload this dataset manually to Kaggle as a private dataset
-    # then attach it to this notebook as "signal-for-help"
+    # Upload manually to Kaggle as private dataset then attach as "signal-for-help"
     candidates = [
         KAGGLE_ROOT / 'signal-for-help',
         KAGGLE_ROOT / 'signal-for-help-dataset',
     ]
     root = next((str(p) for p in candidates if p.exists()), None)
     if root is None:
-        print('  [SKIP] Signal for Help not found.')
-        print('  Upload it to Kaggle as a private dataset and attach it.')
+        print('  [SKIP] Signal for Help not attached — continuing without it.')
         return
     dataset = SignalForHelpDataset(root, window_size=30, augment=False,
                                    skeleton_cache_dir=str(CACHE_ROOT / 'signal'))
@@ -136,10 +124,9 @@ def process_omnifall():
 def process_knife():
     print('\n[6/6] Knife Detection Datasets')
     knife_dirs = [
-        str(KAGGLE_ROOT / 'cctv-weapon-dataset'),
-        str(KAGGLE_ROOT / 'cctv-atm-robbery-detection-dataset-gun-and-knife'),
-        str(KAGGLE_ROOT / 'surveillance-vlm-weapon-and-knife-detection-dataset'),
-        str(KAGGLE_ROOT / 'od-weapon-detection-knife-detection'),
+        str(KAGGLE_ROOT / 'simuletic' / 'cctv-weapon-dataset'),
+        str(KAGGLE_ROOT / 'simuletic' / 'cctv-atm-robbery-detection-dataset-gun-and-knife'),
+        str(KAGGLE_ROOT / 'simuletic' / 'surveillance-vlm-weapon-and-knife-detection-dataset'),
     ]
     existing = [d for d in knife_dirs if os.path.exists(d)]
     if not existing:

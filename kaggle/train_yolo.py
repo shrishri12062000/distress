@@ -10,7 +10,7 @@ from pathlib import Path
 
 REPO_DIR = Path('/kaggle/working/distress-gesture-detection')
 WORKING  = Path('/kaggle/working/distress_detection')
-KNIFE_DATA = WORKING / 'processed' / 'knife' / 'knife_merged'
+KNIFE_DATA  = WORKING / 'processed' / 'knife' / 'knife_merged'
 RUN_DIR    = WORKING / 'yolo_runs'
 RUN_DIR.mkdir(parents=True, exist_ok=True)
 
